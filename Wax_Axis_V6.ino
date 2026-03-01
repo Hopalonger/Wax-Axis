@@ -32,7 +32,7 @@
 
 #include "ui_style.h"
 #include "ui_operate.h"
-#include "ui_setup.h"
+#include "ui_config.h"
 #include "ui_settings.h"
 #include "ui_update.h"
 
@@ -106,7 +106,12 @@ void setup() {
   });
 
   server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send_P(200, "text/html; charset=utf-8", UI_SETUP_HTML);
+    request->send_P(200, "text/html; charset=utf-8", UI_CONFIG_HTML);
+  });
+
+  // Backward-compatible alias for older UI links.
+  server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send_P(200, "text/html; charset=utf-8", UI_CONFIG_HTML);
   });
 
   server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
