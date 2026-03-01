@@ -28,7 +28,6 @@ static inline void clearDiag() {
   (void)digitalRead(DIAG);
 }
 
-static inline long labs_long(long v) { return (v < 0) ? -v : v; }
 
 struct HomingState {
   bool running = false;
@@ -446,7 +445,7 @@ static inline String homingStatusJson() {
 }
 
 // settings JSON helper with homing included
-static inline String settingsToJsonWithHoming() {
+inline String settingsToJsonWithHoming() {
   String json = "{";
   json += "\"enabled\":" + String(gSettings.driverEnabled ? "true" : "false") + ",";
   json += "\"voltage\":\"" + gSettings.setVoltage + "\",";
