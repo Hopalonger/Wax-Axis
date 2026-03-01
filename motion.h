@@ -21,6 +21,15 @@ static inline int microstepsToInt(const String &ms) {
   return v;
 }
 
+static inline TMC2209::StandstillMode standstillModeFromString(String mode) {
+  mode.trim();
+  mode.toUpperCase();
+  if (mode == "FREEWHEEL")      return TMC2209::FREEWHEEL;
+  if (mode == "BRAKING")        return TMC2209::BRAKING;
+  if (mode == "STRONG_BRAKING") return TMC2209::STRONG_BRAKING;
+  return TMC2209::NORMAL;
+}
+
 static inline int32_t unitsToDriverVel(int units) {
   int ms = microstepsToInt(gSettings.microsteps);
   // The factor below is intentionally conservative; adjust if you want faster max.
@@ -59,7 +68,7 @@ static inline void motionBegin() {
 
   // Stall + diag
   stepper_driver.setStallGuardThreshold(gSettings.stallThreshold.toInt());
-  stepper_driver.setStandstillMode(gSettings.standstillMode);
+  stepper_driver.setStandstillMode(standstillModeFromString(gSettings.standstillMode));
 
   g_enabledState = true;
 }
@@ -68,7 +77,7 @@ static inline void motionApplySettingsFromPrefs() {
   stepper_driver.setRunCurrent((uint8_t)gSettings.current.toInt());
   stepper_driver.setMicrostepsPerStep(microstepsToInt(gSettings.microsteps));
   stepper_driver.setStallGuardThreshold(gSettings.stallThreshold.toInt());
-  stepper_driver.setStandstillMode(gSettings.standstillMode);
+  stepper_driver.setStandstillMode(standstillModeFromString(gSettings.standstillMode));
 }
 
 static inline bool pgOkAndEnabledRequested() {
