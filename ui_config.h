@@ -105,8 +105,8 @@ async function post(url, body){
   const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body||'' });
   return r.text();
 }
-async function heaterOn(){ await post('/heater','on=1'); }
-async function heaterOff(){ await post('/heater','on=0'); }
+async function heaterOn(){ await post('/heater','heater=1'); }
+async function heaterOff(){ await post('/heater','heater=0'); }
 
 async function load(){
   const s = await fetch('/settingsjson').then(r=>r.json());
