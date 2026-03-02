@@ -32,6 +32,7 @@ static uint32_t gT0 = 0;
 static String   gMsg = "idle";
 
 static const long WAX_START_SKIP_WINDOW_COUNTS = 20;
+static uint32_t gGotoStartDeadlineMs = 0;
 
 // ---- Speed override handling (THE IMPORTANT FIX) ----
 static bool gSpeedOverrideActive = false;
@@ -130,6 +131,7 @@ static inline bool waxStart(WaxRunKind kind, uint32_t passes){
     gMsg = "at start, heater on";
   } else {
     motionGoto(gStart);
+    gGotoStartDeadlineMs = millis() + gSettings.homingTimeoutMs;
     gWaxState = WAX_GOTO_START;
     gMsg = "going to start";
   }
@@ -169,6 +171,13 @@ static inline void waxTask(){
         gT0 = millis();
         gWaxState = WAX_HEATER_ON_DELAY;
         gMsg = "heater on";
+      } else if (!motionGotoIsActive()) {
+        // Goto unexpectedly stopped before reaching target; recover once.
+        motionGoto(gStart);
+        gGotoStartDeadlineMs = millis() + gSettings.homingTimeoutMs;
+        gMsg = "retrying start";
+      } else if ((int32_t)(millis() - gGotoStartDeadlineMs) >= 0) {
+        waxStopInternal("start timeout");
       }
     } break;
 
@@ -218,8 +227,7 @@ static inline void waxTask(){
 
         gPassIndex++;
         if (gPassIndex >= gPassesReq) {
-          gWaxState = WAX_DONE;
-          gMsg = "done";
+          waxStopInternal("done");
         } else {
           relaySet(true);
           gT0 = millis();

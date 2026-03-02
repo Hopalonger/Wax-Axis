@@ -126,6 +126,7 @@ static inline void motionGoto(long target) {
 }
 
 static inline bool motionGotoIsReached() { return g_gotoReached; }
+static inline bool motionGotoIsActive() { return g_gotoActive; }
 
 // Manual velocity slider
 static inline void motionSetSlider(int slider){
