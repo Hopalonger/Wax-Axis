@@ -31,6 +31,8 @@ static uint32_t gPassIndex = 0;
 static uint32_t gT0 = 0;
 static String   gMsg = "idle";
 
+static const long WAX_START_SKIP_WINDOW_COUNTS = 20;
+
 // ---- Speed override handling (THE IMPORTANT FIX) ----
 static bool gSpeedOverrideActive = false;
 static long gSavedRoutineSpeedUnits = 0;
@@ -119,9 +121,18 @@ static inline bool waxStart(WaxRunKind kind, uint32_t passes){
   relaySet(false);
   speedOverrideEnd(); // make sure no stale override
 
-  motionGoto(gStart);
-  gWaxState = WAX_GOTO_START;
-  gMsg = "going to start";
+  encoderReadNow();
+  long posNow = encoderGetCounts();
+  if (labs_long(gStart - posNow) <= WAX_START_SKIP_WINDOW_COUNTS) {
+    relaySet(true);
+    gT0 = millis();
+    gWaxState = WAX_HEATER_ON_DELAY;
+    gMsg = "at start, heater on";
+  } else {
+    motionGoto(gStart);
+    gWaxState = WAX_GOTO_START;
+    gMsg = "going to start";
+  }
   return true;
 }
 
