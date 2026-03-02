@@ -244,6 +244,14 @@ void setup() {
     sendOk(request, "Stopped");
   });
 
+  server.on("/reset", HTTP_POST, [](AsyncWebServerRequest *request) {
+    homingCancel();
+    waxReset();
+    motionStopAll();
+    relaySet(false);
+    sendOk(request, "Reset complete");
+  });
+
   server.on("/heater", HTTP_POST, [](AsyncWebServerRequest *request) {
     String v = argOr(request, "heater", "");
     if (v.length() == 0) v = argOr(request, "on", "0");
@@ -255,8 +263,8 @@ void setup() {
   server.on("/setopspeed", HTTP_POST, [](AsyncWebServerRequest *request) {
     String v = argOr(request, "routinespeed", String((long)gSettings.routineSpeedUnits));
     long rs = v.toInt();
-    if (rs < 100) rs = 100;
-    if (rs > 3000) rs = 3000;
+    if (rs < 0) rs = 0;
+    if (rs > 400) rs = 400;
     gSettings.routineSpeedUnits = rs;
     settingsSave();
     motionSetRoutineSpeedUnits((int)rs);
@@ -347,7 +355,7 @@ void setup() {
 
 
   // ===================== Manual motion controls (Operate page) =====================
-  // - slider: signed velocity in UI units (-3000..3000)
+  // - slider: signed velocity in UI units (-400..400)
   // - positionControl: 1..4 jog buttons
   server.on("/manual", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasParam("slider", true)) {

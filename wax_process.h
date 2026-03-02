@@ -67,8 +67,8 @@ static inline const char* waxStateName(WaxState s){
 }
 
 static inline int clampSpeedUnits(int v){
-  if (v < 100) v = 100;
-  if (v > 3000) v = 3000;
+  if (v < 0) v = 0;
+  if (v > 400) v = 400;
   return v;
 }
 
@@ -149,6 +149,10 @@ static inline void waxReturnToParkNow(){
 }
 
 static inline void waxStop(){ waxStopInternal("stopped"); }
+
+static inline void waxReset(){
+  waxStopInternal("reset");
+}
 
 static inline void waxTask(){
   if (gWaxState == WAX_IDLE || gWaxState == WAX_DONE || gWaxState == WAX_ERROR) return;

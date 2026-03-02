@@ -25,6 +25,7 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
       <button class="btn" onclick="post('/homing')">Home</button>
       <button class="btn" onclick="post('/returnhome')">Return to Park</button>
       <button class="btn danger" onclick="post('/stop')">STOP</button>
+      <button class="btn" onclick="post('/reset')">RESET</button>
     </div>
 
     <div class="row">
@@ -36,8 +37,9 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
       <div class="field">
         <label>Operating Speed</label>
         <div class="sliderrow">
-          <input id="speed" type="range" min="100" max="3000" step="10" value="600" oninput="speedOut.textContent=this.value" />
-          <div class="pill"><span id="speedOut">600</span></div>
+          <input id="speed" type="range" min="0" max="400" step="1" value="200" oninput="syncSpeedFromSlider()" />
+          <input id="speedInput" type="number" min="0" max="400" step="1" value="200" oninput="syncSpeedFromInput()" />
+          <div class="pill"><span id="speedOut">200</span></div>
         </div>
         <div class="hint">Preheat + return speeds are derived from Settings…</div>
       </div>
@@ -66,6 +68,27 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
 
 <script>
 const speedOut = document.getElementById('speedOut');
+const speedSlider = document.getElementById('speed');
+const speedInput = document.getElementById('speedInput');
+
+function clampSpeed(v){
+  let n = Number(v);
+  if (!Number.isFinite(n)) n = 0;
+  n = Math.round(n);
+  if (n < 0) n = 0;
+  if (n > 400) n = 400;
+  return n;
+}
+
+function applySpeedValue(v){
+  const sv = String(clampSpeed(v));
+  speedSlider.value = sv;
+  speedInput.value = sv;
+  speedOut.textContent = sv;
+}
+
+function syncSpeedFromSlider(){ applySpeedValue(speedSlider.value); }
+function syncSpeedFromInput(){ applySpeedValue(speedInput.value); }
 
 async function post(url, body){
   const opts = { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'} };
@@ -75,7 +98,8 @@ async function post(url, body){
 }
 
 async function startRun(){
-  const sp = document.getElementById('speed').value;
+  const sp = String(clampSpeed(speedInput.value));
+  applySpeedValue(sp);
   const ps = document.getElementById('passes').value;
   await post('/setopspeed', 'routinespeed='+encodeURIComponent(sp));
   await post('/run', 'passes='+encodeURIComponent(ps));
@@ -105,8 +129,7 @@ async function poll(){
 async function load(){
   try{
     const s = await fetch('/settingsjson').then(r=>r.json());
-    document.getElementById('speed').value = s.routineSpeedUnits;
-    speedOut.textContent = s.routineSpeedUnits;
+    applySpeedValue(s.routineSpeedUnits);
   }catch(e){}
   setInterval(poll, 300);
 }

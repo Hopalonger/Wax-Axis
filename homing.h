@@ -18,6 +18,7 @@ static const bool DIAG_ACTIVE_HIGH = true;
 static const int  DIAG_IRQ_MODE    = RISING;
 
 static volatile bool g_diagHit = false;
+static volatile bool g_homeAbort = false;
 
 static inline void IRAM_ATTR diag_isr() {
   g_diagHit = true;
@@ -26,6 +27,10 @@ static inline void IRAM_ATTR diag_isr() {
 static inline void clearDiag() {
   g_diagHit = false;
   (void)digitalRead(DIAG);
+}
+
+static inline bool homingAbortRequested() {
+  return g_homeAbort;
 }
 
 
@@ -85,10 +90,21 @@ static bool runUntilDiagVelRamped(int32_t vTargetUnits,
   int32_t vNow = 0;
   stepper_driver.moveAtVelocity(unitsToDriverVel(0));
 
+  const uint32_t STALL_WINDOW_MS = 250;
+  const long STALL_MIN_DELTA_COUNTS = 4;
+  const int32_t STALL_MONITOR_MIN_SPEED = 25;
+
+  encoderReadNow();
+  long stallWindowStartPos = encoderGetCounts();
   uint32_t startMs = millis();
   uint32_t lastTick = startMs;
+  uint32_t stallWindowStartMs = startMs;
 
   while (true) {
+    if (homingAbortRequested()) {
+      stepper_driver.moveAtVelocity(unitsToDriverVel(0));
+      return false;
+    }
     if (g_diagHit || diagStable(diagAssertMs)) {
       stepper_driver.moveAtVelocity(unitsToDriverVel(0));
       return true;
@@ -97,7 +113,21 @@ static bool runUntilDiagVelRamped(int32_t vTargetUnits,
       stepper_driver.moveAtVelocity(unitsToDriverVel(0));
       return false;
     }
+
+    encoderReadNow();
+    long nowPos = encoderGetCounts();
     uint32_t now = millis();
+
+    if ((uint32_t)(now - stallWindowStartMs) >= STALL_WINDOW_MS) {
+      long traveled = labs_long(nowPos - stallWindowStartPos);
+      if (abs(vNow) >= STALL_MONITOR_MIN_SPEED && traveled <= STALL_MIN_DELTA_COUNTS) {
+        stepper_driver.moveAtVelocity(unitsToDriverVel(0));
+        return true;
+      }
+      stallWindowStartPos = nowPos;
+      stallWindowStartMs = now;
+    }
+
     if (now - lastTick >= tickMs) {
       lastTick = now;
       vNow = rampVelToward(vNow, vTargetUnits, rampUnitsPerTick);
@@ -122,6 +152,10 @@ static bool backoffByEncoderDeltaRamped(int32_t vTargetUnits,
   uint32_t lastTick = startMs;
 
   while (true) {
+    if (homingAbortRequested()) {
+      stepper_driver.moveAtVelocity(unitsToDriverVel(0));
+      return false;
+    }
     encoderReadNow();
     long nowPos = encoderGetCounts();
     if (labs_long(nowPos - startPos) >= backoffCounts) {
@@ -353,7 +387,7 @@ static void homingTask(void *pv) {
     gHome.error = true;
     gHome.done = false;
     gHome.validEnds = false;
-    gHome.msg = "homing failed";
+    gHome.msg = homingAbortRequested() ? "homing cancelled" : "homing failed";
   } else {
     gHome.error = false;
     gHome.done = true;
@@ -377,10 +411,31 @@ static inline bool homingStartAsync() {
   gHome.done = false;
   gHome.error = false;
   gHome.msg = "homing...";
+  g_homeAbort = false;
   portEXIT_CRITICAL(&gHomeMux);
 
   xTaskCreatePinnedToCore(homingTask, "homingTask", 8192, nullptr, 1, nullptr, 1);
   return true;
+}
+
+static inline bool homingCancel() {
+  g_homeAbort = true;
+
+  bool wasRunning;
+  portENTER_CRITICAL(&gHomeMux);
+  wasRunning = gHome.running;
+  if (wasRunning) {
+    gHome.error = true;
+    gHome.done = false;
+    gHome.validEnds = false;
+    gHome.msg = "homing cancelled";
+  }
+  portEXIT_CRITICAL(&gHomeMux);
+
+  stepper_driver.moveAtVelocity(unitsToDriverVel(0));
+  motionStopAll();
+  motionSetLocked(false);
+  return wasRunning;
 }
 
 // Auto-park after homing completes
