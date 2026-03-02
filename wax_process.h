@@ -31,6 +31,25 @@ static uint32_t gPassIndex = 0;
 static uint32_t gT0 = 0;
 static String   gMsg = "idle";
 
+// ---- Speed override handling (THE IMPORTANT FIX) ----
+static bool gSpeedOverrideActive = false;
+static long gSavedRoutineSpeedUnits = 0;
+
+static inline void speedOverrideBegin(long newUnits){
+  if (!gSpeedOverrideActive) {
+    gSavedRoutineSpeedUnits = gSettings.routineSpeedUnits;
+    gSpeedOverrideActive = true;
+  }
+  gSettings.routineSpeedUnits = newUnits;
+}
+
+static inline void speedOverrideEnd(){
+  if (gSpeedOverrideActive) {
+    gSettings.routineSpeedUnits = gSavedRoutineSpeedUnits;
+    gSpeedOverrideActive = false;
+  }
+}
+
 static inline const char* waxStateName(WaxState s){
   switch(s){
     case WAX_IDLE: return "Idle";
@@ -51,10 +70,13 @@ static inline int clampSpeedUnits(int v){
   return v;
 }
 
+// Forward speed behavior:
+// - RUN: base operating speed
+// - PREHEAT: base * preheatMult  (so if preheatMult=2.0 => preheat is 2x faster)
 static inline int waxForwardSpeedUnits(WaxRunKind kind){
   int base = (int)gSettings.routineSpeedUnits;
   if (kind == WAX_KIND_PREHEAT) {
-    return clampSpeedUnits((int)lroundf(base * gSettings.preheatMult));
+    return clampSpeedUnits((int)lroundf((float)base * (float)gSettings.preheatMult));
   }
   return clampSpeedUnits(base);
 }
@@ -62,12 +84,13 @@ static inline int waxForwardSpeedUnits(WaxRunKind kind){
 static inline int waxReturnSpeedUnits(){
   int base = (int)gSettings.routineSpeedUnits;
   float mult = (float)gSettings.returnSpeedPct / 100.0f;
-  return clampSpeedUnits((int)lroundf(base * mult));
+  return clampSpeedUnits((int)lroundf((float)base * mult));
 }
 
 static inline void waxStopInternal(const String& why){
   relaySet(false);
   motionStopAll();
+  speedOverrideEnd();
 
   gWaxKind = WAX_KIND_NONE;
   gWaxState = WAX_IDLE;
@@ -93,8 +116,9 @@ static inline bool waxStart(WaxRunKind kind, uint32_t passes){
   gPassesReq = (kind == WAX_KIND_PREHEAT) ? 1 : (passes < 1 ? 1 : passes);
   gPassIndex = 0;
 
-  // Ensure we're at the start position first (heater OFF)
   relaySet(false);
+  speedOverrideEnd(); // make sure no stale override
+
   motionGoto(gStart);
   gWaxState = WAX_GOTO_START;
   gMsg = "going to start";
@@ -108,6 +132,7 @@ static inline void waxReturnToParkNow(){
   if (!motionCanAcceptCommand()) { waxStopInternal("Power Bad / Disabled"); return; }
   if (!homingIsDone()) { gMsg = "Run homing first"; return; }
   relaySet(false);
+  speedOverrideEnd();
   motionGoto(homingParkPos());
   gMsg = "returning to park";
 }
@@ -125,7 +150,6 @@ static inline void waxTask(){
   switch(gWaxState){
     case WAX_GOTO_START: {
       if (motionGotoIsReached()) {
-        // Heater ON + delay
         relaySet(true);
         gT0 = millis();
         gWaxState = WAX_HEATER_ON_DELAY;
@@ -135,23 +159,23 @@ static inline void waxTask(){
 
     case WAX_HEATER_ON_DELAY: {
       if ((uint32_t)(millis() - gT0) >= (uint32_t)gSettings.heaterDelayMs) {
-        // Move out (heater ON)
+        // ---- OUTWARD LEG ----
+        // IMPORTANT: Keep speed override active until we actually reach the end.
         int fwd = waxForwardSpeedUnits(gWaxKind);
-        // Temporarily set routine speed high by just using motionGoto's proportional
-        // controller target; motion.h clamps based on gSettings.routineSpeedUnits,
-        // so we bump the base speed during the outward leg:
-        long saved = gSettings.routineSpeedUnits;
-        gSettings.routineSpeedUnits = fwd;
+        speedOverrideBegin(fwd);
+
         motionGoto(gEnd);
-        gSettings.routineSpeedUnits = saved;
 
         gWaxState = WAX_MOVE_OUT;
-        gMsg = "moving out";
+        gMsg = (gWaxKind == WAX_KIND_PREHEAT) ? "preheat moving out" : "moving out";
       }
     } break;
 
     case WAX_MOVE_OUT: {
       if (motionGotoIsReached()) {
+        // We’re done with outward leg speed override now
+        speedOverrideEnd();
+
         relaySet(false);
         gT0 = millis();
         gWaxState = WAX_HEATER_OFF;
@@ -161,12 +185,11 @@ static inline void waxTask(){
 
     case WAX_HEATER_OFF: {
       if (millis() - gT0 >= 50) {
-        // Return to park (heater OFF)
+        // ---- RETURN LEG ----
         int ret = waxReturnSpeedUnits();
-        long saved = gSettings.routineSpeedUnits;
-        gSettings.routineSpeedUnits = ret;
+        speedOverrideBegin(ret);
+
         motionGoto(gStart);
-        gSettings.routineSpeedUnits = saved;
 
         gWaxState = WAX_RETURN_PARK;
         gMsg = "returning";
@@ -175,6 +198,9 @@ static inline void waxTask(){
 
     case WAX_RETURN_PARK: {
       if (motionGotoIsReached()) {
+        // Done with return speed override
+        speedOverrideEnd();
+
         gPassIndex++;
         if (gPassIndex >= gPassesReq) {
           gWaxState = WAX_DONE;
