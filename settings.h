@@ -5,7 +5,7 @@
 struct WaxAxisSettings {
   // Driver / low-level
   bool   driverEnabled = true;
-  String setVoltage    = "5";     // you wanted 5V on ESP32S3 PD stepper sketch
+  String setVoltage    = "5";     // default to 5V so you can run from laptop USB power
   String microsteps    = "32";
   String current       = "30";
   String stallThreshold= "10";
@@ -36,11 +36,35 @@ struct WaxAxisSettings {
 static Preferences gPrefs;
 static WaxAxisSettings gSettings;
 
-static inline void settingsDefaultsIfMissing() {
+// Increment this when you change preference semantics/defaults.
+static const uint32_t SETTINGS_SCHEMA_VER = 2;
+
+static inline void settingsMigrateIfNeeded() {
   gPrefs.begin("settings", false);
+
+  uint32_t ver = gPrefs.getUInt("schema", 0);
+  if (ver < SETTINGS_SCHEMA_VER) {
+    // ---- Migration rules ----
+    // v2: default PD voltage should be 5V (previous builds often left 20V in NVS).
+    // Only force it on migration so users can still change it later.
+    gPrefs.putString("voltage", "5");
+
+    // v2: ensure standstill strings are consistent with UI options
+    // (UI uses FREEWHEELING; driver mapping accepts both, but keep it neat).
+    String ssm = gPrefs.getString("standstillMode", "NORMAL");
+    ssm.trim(); ssm.toUpperCase();
+    if (ssm == "FREEWHEEL") ssm = "FREEWHEELING";
+    gPrefs.putString("standstillMode", ssm);
+
+    gPrefs.putUInt("schema", SETTINGS_SCHEMA_VER);
+  }
+
+  // First-run init (keep separate from schema so we can migrate later)
   bool inited = gPrefs.getBool("init", false);
   if (!inited) {
     gPrefs.putBool("init", true);
+
+    gPrefs.putUInt("schema", SETTINGS_SCHEMA_VER);
 
     gPrefs.putBool  ("driverEnabled", gSettings.driverEnabled);
     gPrefs.putString("voltage", gSettings.setVoltage);
@@ -65,11 +89,12 @@ static inline void settingsDefaultsIfMissing() {
     gPrefs.putInt  ("returnPct", gSettings.returnSpeedPct);
     gPrefs.putInt  ("heaterDelayMs", gSettings.heaterDelayMs);
   }
+
   gPrefs.end();
 }
 
 static inline void settingsLoad() {
-  settingsDefaultsIfMissing();
+  settingsMigrateIfNeeded();
   gPrefs.begin("settings", false);
 
   gSettings.driverEnabled      = gPrefs.getBool("driverEnabled", true);
