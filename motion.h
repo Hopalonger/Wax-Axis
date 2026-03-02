@@ -12,8 +12,6 @@ extern TMC2209 stepper_driver;
 // ===== Utilities =====
 static inline long labs_long(long v) { return (v < 0) ? -v : v; }
 
-// Convert UI "speed units" (100..3000) into driver velocity.
-// This matches your existing approach: scale by microsteps so UI stays consistent.
 static inline int microstepsToInt(const String &ms) {
   int v = ms.toInt();
   if (v < 1) v = 1;
@@ -21,20 +19,22 @@ static inline int microstepsToInt(const String &ms) {
   return v;
 }
 
+// IMPORTANT: library uses FREEWHEELING (not FREEWHEEL)
 static inline TMC2209::StandstillMode standstillModeFromString(String mode) {
   mode.trim();
   mode.toUpperCase();
-  if (mode == "FREEWHEEL")      return TMC2209::FREEWHEEL;
+  if (mode == "FREEWHEELING")   return TMC2209::FREEWHEELING;
+  if (mode == "FREEWHEEL")      return TMC2209::FREEWHEELING;  // accept UI shorthand
   if (mode == "BRAKING")        return TMC2209::BRAKING;
   if (mode == "STRONG_BRAKING") return TMC2209::STRONG_BRAKING;
   return TMC2209::NORMAL;
 }
 
+// Convert UI "speed units" into driver velocity.
+// Keep this consistent with your existing behavior.
 static inline int32_t unitsToDriverVel(int units) {
   int ms = microstepsToInt(gSettings.microsteps);
-  // The factor below is intentionally conservative; adjust if you want faster max.
-  // Bigger factor = faster actual motor for same UI value.
-  const float k = 4.0f;
+  const float k = 4.0f; // bump to 8.0f if manual velocity feels too weak
   return (int32_t)lroundf((float)units * (float)ms * k);
 }
 
@@ -52,6 +52,10 @@ static bool g_gotoActive = false;
 static bool g_gotoReached = false;
 static String g_gotoMsg = "Idle";
 
+// Jog sizes (encoder counts)
+static const long JOG_SMALL = 1024;
+static const long JOG_LARGE = 4096;
+
 static uint32_t g_lastCtrlMs = 0;
 static const uint32_t CTRL_PERIOD_MS = 10;
 
@@ -61,15 +65,11 @@ static inline void motionBegin() {
   digitalWrite(TMC_EN, LOW);
 
   stepper_driver.setRunCurrent((uint8_t)gSettings.current.toInt());
-  stepper_driver.enable();
-
-  // Default: conservative
   stepper_driver.setMicrostepsPerStep(microstepsToInt(gSettings.microsteps));
-
-  // Stall + diag
   stepper_driver.setStallGuardThreshold(gSettings.stallThreshold.toInt());
   stepper_driver.setStandstillMode(standstillModeFromString(gSettings.standstillMode));
 
+  stepper_driver.enable();
   g_enabledState = true;
 }
 
@@ -85,12 +85,6 @@ static inline bool pgOkAndEnabledRequested() {
   return (digitalRead(PG) == LOW);
 }
 
-static inline const char* motionDriverStatusText() {
-  if (!gSettings.driverEnabled) return "Disabled";
-  if (digitalRead(PG) != LOW)   return "Power Bad";
-  return "Ready";
-}
-
 static inline void motionSetLocked(bool locked) {
   g_motionLocked = locked;
   if (locked) {
@@ -103,10 +97,6 @@ static inline void motionSetLocked(bool locked) {
 
 static inline bool motionCanAcceptCommand() {
   return (!g_motionLocked) && pgOkAndEnabledRequested();
-}
-
-static inline bool motionIsIdle() {
-  return (!g_motionLocked) && !g_gotoActive && (g_sliderCmd == 0);
 }
 
 static inline void motionStopAll() {
@@ -128,10 +118,56 @@ static inline void motionGoto(long target) {
 }
 
 static inline bool motionGotoIsReached() { return g_gotoReached; }
-static inline long motionPositionCounts() { return encoderGetCounts(); }
+
+// Manual velocity slider
+static inline void motionSetSlider(int slider){
+  if (g_motionLocked) return;
+  if (!motionCanAcceptCommand()) { motionStopAll(); g_gotoMsg = "Power Bad / Disabled"; return; }
+  if (slider > 3000) slider = 3000;
+  if (slider < -3000) slider = -3000;
+  g_gotoActive = false;
+  g_gotoReached = false;
+  g_sliderCmd = slider;
+  g_gotoMsg = (slider == 0) ? "Idle" : "Velocity";
+}
+
+static inline void motionJog(int which){
+  if (g_motionLocked) return;
+  if (!motionCanAcceptCommand()) { motionStopAll(); g_gotoMsg = "Power Bad / Disabled"; return; }
+
+  encoderReadNow();
+  long posNow = encoderGetCounts();
+  long target = posNow;
+
+  if (which == 1)      target = posNow - JOG_LARGE;
+  else if (which == 2) target = posNow - JOG_SMALL;
+  else if (which == 3) target = posNow + JOG_SMALL;
+  else if (which == 4) target = posNow + JOG_LARGE;
+  else return;
+
+  g_sliderCmd = 0;
+  motionGoto(target);
+  g_gotoMsg = "Jog";
+}
+
+static inline String motionGotoStatus(){
+  if (!gSettings.driverEnabled) return "Driver Disabled";
+  if (digitalRead(PG) != LOW)   return "Power Bad";
+  if (g_motionLocked)           return "Locked";
+  if (g_gotoActive)             return "Going";
+  if (g_gotoReached)            return "Reached";
+  return g_gotoMsg;
+}
+
+static inline void motionSetRoutineSpeedUnits(int units){
+  if (units < 100) units = 100;
+  if (units > 3000) units = 3000;
+  gSettings.routineSpeedUnits = units;
+}
 
 // Simple P controller -> velocity command
 static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
+  (void)dtMs;
   encoderReadNow();
   long pos = encoderGetCounts();
   long err = target - pos;
@@ -140,13 +176,13 @@ static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
     return true;
   }
 
-  // proportional to error, clamped to UI speed max
   const float Kp = 0.04f;
   int v = (int)lroundf(Kp * (float)err);
-  if (v >  (int)gSettings.routineSpeedUnits) v =  (int)gSettings.routineSpeedUnits;
-  if (v < -(int)gSettings.routineSpeedUnits) v = -(int)gSettings.routineSpeedUnits;
 
-  // min movement to avoid stalling
+  int vmax = (int)gSettings.routineSpeedUnits;
+  if (v >  vmax) v =  vmax;
+  if (v < -vmax) v = -vmax;
+
   if (v > 0 && v < 30) v = 30;
   if (v < 0 && v > -30) v = -30;
 
@@ -173,11 +209,10 @@ static inline void motionControlTask() {
 
   uint32_t now = millis();
   if (now - g_lastCtrlMs < CTRL_PERIOD_MS) return;
-  uint32_t dt = now - g_lastCtrlMs;
   g_lastCtrlMs = now;
 
   if (g_gotoActive) {
-    bool arrived = motionGoTo(g_gotoTarget, gSettings.gotoTolCounts, dt);
+    bool arrived = motionGoTo(g_gotoTarget, gSettings.gotoTolCounts, CTRL_PERIOD_MS);
     if (arrived) {
       g_gotoActive = false;
       g_gotoReached = true;
