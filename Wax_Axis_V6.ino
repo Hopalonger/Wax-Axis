@@ -245,8 +245,10 @@ void setup() {
   });
 
   server.on("/heater", HTTP_POST, [](AsyncWebServerRequest *request) {
-    String v = argOr(request, "heater", "0");
-    relaySet(v.toInt() != 0);
+    String v = argOr(request, "heater", "");
+    if (v.length() == 0) v = argOr(request, "on", "0");
+    bool on = (v.toInt() != 0);
+    relaySet(on);
     sendOk(request, relayIsOn() ? "Heater ON" : "Heater OFF");
   });
 

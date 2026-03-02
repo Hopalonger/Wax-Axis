@@ -51,6 +51,10 @@ static long g_gotoTarget = 0;
 static bool g_gotoActive = false;
 static bool g_gotoReached = false;
 static String g_gotoMsg = "Idle";
+static int  g_posControlPolarity = 1; // +1 normal, -1 reversed
+static long g_lastCtrlPos = 0;
+static bool g_lastCtrlPosValid = false;
+static uint8_t g_divergeTicks = 0;
 
 // Jog sizes (encoder counts)
 static const long JOG_SMALL = 1024;
@@ -105,6 +109,8 @@ static inline void motionStopAll() {
   g_gotoReached = false;
   applyVelocityUnits(0);
   g_gotoMsg = "Stopped";
+  g_divergeTicks = 0;
+  g_lastCtrlPosValid = false;
 }
 
 static inline void motionGoto(long target) {
@@ -115,6 +121,8 @@ static inline void motionGoto(long target) {
   g_gotoActive = true;
   g_gotoReached = false;
   g_gotoMsg = "Going";
+  g_divergeTicks = 0;
+  g_lastCtrlPosValid = false;
 }
 
 static inline bool motionGotoIsReached() { return g_gotoReached; }
@@ -177,7 +185,7 @@ static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
   }
 
   const float Kp = 0.04f;
-  int v = (int)lroundf(Kp * (float)err);
+  int v = (int)lroundf(Kp * (float)err) * g_posControlPolarity;
 
   int vmax = (int)gSettings.routineSpeedUnits;
   if (v >  vmax) v =  vmax;
@@ -185,6 +193,23 @@ static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
 
   if (v > 0 && v < 30) v = 30;
   if (v < 0 && v > -30) v = -30;
+
+  // Auto-correct encoder/motor polarity if we repeatedly move away from target.
+  if (g_lastCtrlPosValid) {
+    long dPos = pos - g_lastCtrlPos;
+    bool movingAway = (labs_long(err) > (tol * 2)) && ((err > 0 && dPos < 0) || (err < 0 && dPos > 0));
+    if (movingAway) {
+      if (g_divergeTicks < 255) g_divergeTicks++;
+      if (g_divergeTicks >= 8) {
+        g_posControlPolarity = -g_posControlPolarity;
+        g_divergeTicks = 0;
+      }
+    } else {
+      g_divergeTicks = 0;
+    }
+  }
+  g_lastCtrlPos = pos;
+  g_lastCtrlPosValid = true;
 
   applyVelocityUnits(v);
   return false;
