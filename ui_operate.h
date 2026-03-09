@@ -37,11 +37,11 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
       <div class="field">
         <label>Operating Speed</label>
         <div class="sliderrow">
-          <input id="speed" type="range" min="50" max="400" step="1" value="200" oninput="syncSpeedFromSlider()" />
-          <input id="speedInput" type="number" min="50" max="400" step="1" value="200" oninput="syncSpeedFromInput()" />
-          <div class="pill"><span id="speedOut">200</span></div>
+          <input id="speed" type="range" min="5" max="200" step="1" value="100" oninput="syncSpeedFromSlider()" />
+          <input id="speedInput" type="number" min="5" max="200" step="1" value="100" oninput="syncSpeedFromInput()" />
+          <div class="pill"><span id="speedOut">100</span></div>
         </div>
-        <div class="hint">Preheat + return speeds are derived from Settings…</div>
+        <div class="hint">Linear scale: 100 = legacy baseline, 25 = 1/4 speed, 5 = very slow crawl, 200 = 2x speed.</div>
       </div>
 
       <div class="field">
@@ -49,6 +49,26 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
         <input id="passes" type="number" min="1" max="25" value="2" />
         <div class="hint">Typical: 1–3… more passes = more heat/time.</div>
       </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Manual Control</h2>
+    <div class="field">
+      <label>Manual Velocity</label>
+      <div class="sliderrow">
+        <input id="manualSlider" type="range" min="-200" max="200" step="1" value="0" oninput="sendManualSlider()" />
+        <div class="pill"><span id="manualOut">0</span></div>
+      </div>
+      <div class="hint">Center is stop. Left/right moves toward each end.</div>
+    </div>
+
+    <div class="row">
+      <button class="btn" onclick="jog(1)">◀◀ Large</button>
+      <button class="btn" onclick="jog(2)">◀ Small</button>
+      <button class="btn" onclick="jog(3)">Small ▶</button>
+      <button class="btn" onclick="jog(4)">Large ▶▶</button>
+      <button class="btn ghost" onclick="stopManual()">Stop Manual</button>
     </div>
   </section>
 
@@ -70,13 +90,15 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
 const speedOut = document.getElementById('speedOut');
 const speedSlider = document.getElementById('speed');
 const speedInput = document.getElementById('speedInput');
+const manualSlider = document.getElementById('manualSlider');
+const manualOut = document.getElementById('manualOut');
 
 function clampSpeed(v){
   let n = Number(v);
   if (!Number.isFinite(n)) n = 0;
   n = Math.round(n);
-  if (n < 50) n = 50;
-  if (n > 400) n = 400;
+  if (n < 5) n = 5;
+  if (n > 200) n = 200;
   return n;
 }
 
@@ -95,6 +117,22 @@ async function post(url, body){
   if(body){ opts.body = body; }
   const r = await fetch(url, opts);
   return r.text();
+}
+
+async function sendManualSlider(){
+  const v = Math.round(Number(manualSlider.value) || 0);
+  manualOut.textContent = String(v);
+  await post('/manual', 'slider=' + encodeURIComponent(v));
+}
+
+async function jog(which){
+  await post('/manual', 'positionControl=' + encodeURIComponent(which));
+}
+
+async function stopManual(){
+  manualSlider.value = '0';
+  manualOut.textContent = '0';
+  await post('/manual', 'slider=0');
 }
 
 async function startRun(){
