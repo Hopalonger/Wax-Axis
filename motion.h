@@ -9,6 +9,8 @@
 // Provided by main .ino
 extern TMC2209 stepper_driver;
 
+static int  g_lastAppliedUnits = 0;
+
 // ===== Utilities =====
 static inline long labs_long(long v) { return (v < 0) ? -v : v; }
 
@@ -39,6 +41,7 @@ static inline int32_t unitsToDriverVel(int units) {
 }
 
 static inline void applyVelocityUnits(int units) {
+  g_lastAppliedUnits = units;
   stepper_driver.moveAtVelocity(unitsToDriverVel(units));
 }
 
@@ -104,14 +107,35 @@ static inline bool motionCanAcceptCommand() {
 }
 
 static inline bool motionStallDetected() {
+  const int MIN_CMD_UNITS = 15;
+  const uint32_t STALL_WINDOW_MS = 150;
+  const long STALL_MIN_DELTA_COUNTS = 3;
+
+  static bool active = false;
+  static uint32_t startMs = 0;
+  static long startPos = 0;
+
   bool diag = (digitalRead(DIAG) == HIGH);
-  if (!diag) return false;
+  bool commandingMotion = (abs(g_lastAppliedUnits) >= MIN_CMD_UNITS);
+  if (!diag || !commandingMotion) {
+    active = false;
+    return false;
+  }
+
   encoderReadNow();
-  long posBefore = encoderGetCounts();
-  delayMicroseconds(200);
-  encoderReadNow();
-  long posAfter = encoderGetCounts();
-  return (labs_long(posAfter - posBefore) <= 1);
+  long posNow = encoderGetCounts();
+  uint32_t now = millis();
+  if (!active) {
+    active = true;
+    startMs = now;
+    startPos = posNow;
+    return false;
+  }
+  if ((uint32_t)(now - startMs) < STALL_WINDOW_MS) return false;
+
+  long traveled = labs_long(posNow - startPos);
+  active = false;
+  return (traveled <= STALL_MIN_DELTA_COUNTS);
 }
 
 static inline void motionStopAll() {
@@ -180,8 +204,8 @@ static inline String motionGotoStatus(){
 }
 
 static inline void motionSetRoutineSpeedUnits(int units){
-  if (units < 100) units = 100;
-  if (units > 3000) units = 3000;
+  if (units < 5) units = 5;
+  if (units > 200) units = 200;
   gSettings.routineSpeedUnits = units;
 }
 
@@ -203,8 +227,12 @@ static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
   if (v >  vmax) v =  vmax;
   if (v < -vmax) v = -vmax;
 
-  if (v > 0 && v < 30) v = 30;
-  if (v < 0 && v > -30) v = -30;
+  int minDrive = vmax / 8;
+  if (minDrive < 3) minDrive = 3;
+  if (minDrive > 30) minDrive = 30;
+
+  if (v > 0 && v < minDrive) v = minDrive;
+  if (v < 0 && v > -minDrive) v = -minDrive;
 
   // Auto-correct encoder/motor polarity if we repeatedly move away from target.
   if (g_lastCtrlPosValid) {

@@ -51,6 +51,12 @@ static const char UI_SETTINGS_HTML[] PROGMEM = R"HTML(
         </div>
 
         <div class="field">
+          <label>Homing Speed (units)</label>
+          <input name="homing_speed" id="homing_speed" type="number" min="20" max="300" step="1" value="150">
+          <div class="hint">Base speed used during homing seek passes for tuning/testing.</div>
+        </div>
+
+        <div class="field">
           <label>Homing Timeout (ms)</label>
           <input name="homing_timeout" id="homing_timeout" type="number" min="10000" max="600000" step="1000" value="120000">
           <div class="hint">If your homing takes ~30s… set this to 60000–120000+.</div>
@@ -97,6 +103,7 @@ async function load(){
   heater_delay.value = s.heaterDelayMs;
 
   home_side.value = s.homeSide;
+  homing_speed.value = s.homingSpeedUnits;
   homing_timeout.value = s.homingTimeoutMs;
   edge_keepoff.value = s.edgeKeepoffCounts;
   park_offset.value = s.parkOffsetCounts;
