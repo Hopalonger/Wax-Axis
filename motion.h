@@ -103,6 +103,17 @@ static inline bool motionCanAcceptCommand() {
   return (!g_motionLocked) && pgOkAndEnabledRequested();
 }
 
+static inline bool motionStallDetected() {
+  bool diag = (digitalRead(DIAG) == HIGH);
+  if (!diag) return false;
+  encoderReadNow();
+  long posBefore = encoderGetCounts();
+  delayMicroseconds(200);
+  encoderReadNow();
+  long posAfter = encoderGetCounts();
+  return (labs_long(posAfter - posBefore) <= 1);
+}
+
 static inline void motionStopAll() {
   g_sliderCmd = 0;
   g_gotoActive = false;
@@ -236,6 +247,12 @@ static inline void motionControlTask() {
   uint32_t now = millis();
   if (now - g_lastCtrlMs < CTRL_PERIOD_MS) return;
   g_lastCtrlMs = now;
+
+  if (motionStallDetected()) {
+    motionStopAll();
+    g_gotoMsg = "Stall Detected";
+    return;
+  }
 
   if (g_gotoActive) {
     bool arrived = motionGoTo(g_gotoTarget, gSettings.gotoTolCounts, CTRL_PERIOD_MS);

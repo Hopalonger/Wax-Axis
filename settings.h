@@ -7,8 +7,8 @@ struct WaxAxisSettings {
   bool   driverEnabled = true;
   String setVoltage    = "5";     // default to 5V so you can run from laptop USB power
   String microsteps    = "32";
-  String current       = "30";
-  String stallThreshold= "10";
+  String current       = "10";
+  String stallThreshold= "63";
   String standstillMode= "NORMAL";
 
   // Motion tolerances (encoder counts)
@@ -100,8 +100,8 @@ static inline void settingsLoad() {
   gSettings.driverEnabled      = gPrefs.getBool("driverEnabled", true);
   gSettings.setVoltage         = gPrefs.getString("voltage", "5");
   gSettings.microsteps         = gPrefs.getString("microsteps", "32");
-  gSettings.current            = gPrefs.getString("current", "30");
-  gSettings.stallThreshold     = gPrefs.getString("stallThreshold", "10");
+  gSettings.current            = gPrefs.getString("current", "10");
+  gSettings.stallThreshold     = gPrefs.getString("stallThreshold", "63");
   gSettings.standstillMode     = gPrefs.getString("standstillMode", "NORMAL");
 
   gSettings.gotoTolCounts      = gPrefs.getLong("gotoTol", 3);
@@ -133,8 +133,18 @@ static inline void settingsLoad() {
   if (gSettings.edgeKeepoffCounts < 0) gSettings.edgeKeepoffCounts = 0;
   if (gSettings.parkOffsetCounts < 0) gSettings.parkOffsetCounts = 0;
 
-  if (gSettings.routineSpeedUnits < 0)   gSettings.routineSpeedUnits = 0;
+  if (gSettings.routineSpeedUnits < 50)  gSettings.routineSpeedUnits = 50;
   if (gSettings.routineSpeedUnits > 400) gSettings.routineSpeedUnits = 400;
+
+  int currentPct = gSettings.current.toInt();
+  if (currentPct < 5) currentPct = 5;
+  if (currentPct > 100) currentPct = 100;
+  gSettings.current = String(currentPct);
+
+  int stall = gSettings.stallThreshold.toInt();
+  if (stall < -64) stall = -64;
+  if (stall > 63) stall = 63;
+  gSettings.stallThreshold = String(stall);
 
   if (gSettings.preheatMult < 1.0f) gSettings.preheatMult = 1.0f;
   if (gSettings.preheatMult > 5.0f) gSettings.preheatMult = 5.0f;

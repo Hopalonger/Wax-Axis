@@ -37,8 +37,8 @@ static const char UI_OPERATE_HTML[] PROGMEM = R"HTML(
       <div class="field">
         <label>Operating Speed</label>
         <div class="sliderrow">
-          <input id="speed" type="range" min="0" max="400" step="1" value="200" oninput="syncSpeedFromSlider()" />
-          <input id="speedInput" type="number" min="0" max="400" step="1" value="200" oninput="syncSpeedFromInput()" />
+          <input id="speed" type="range" min="50" max="400" step="1" value="200" oninput="syncSpeedFromSlider()" />
+          <input id="speedInput" type="number" min="50" max="400" step="1" value="200" oninput="syncSpeedFromInput()" />
           <div class="pill"><span id="speedOut">200</span></div>
         </div>
         <div class="hint">Preheat + return speeds are derived from Settings…</div>
@@ -75,7 +75,7 @@ function clampSpeed(v){
   let n = Number(v);
   if (!Number.isFinite(n)) n = 0;
   n = Math.round(n);
-  if (n < 0) n = 0;
+  if (n < 50) n = 50;
   if (n > 400) n = 400;
   return n;
 }
