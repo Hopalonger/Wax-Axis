@@ -334,6 +334,7 @@ void setup() {
 
     gSettings.edgeKeepoffCounts = argOr(request, "edge_keepoff", String(gSettings.edgeKeepoffCounts)).toInt();
     gSettings.parkOffsetCounts = argOr(request, "park_offset", String(gSettings.parkOffsetCounts)).toInt();
+    gSettings.homingSpeedUnits = argOr(request, "homing_speed", String(gSettings.homingSpeedUnits)).toInt();
     gSettings.homingTimeoutMs = (uint32_t)argOr(request, "homing_timeout", String(gSettings.homingTimeoutMs)).toInt();
 
     String hs = argOr(request, "home_side", gSettings.homeSideIsMin ? "min" : "max");

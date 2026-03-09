@@ -17,6 +17,7 @@ struct WaxAxisSettings {
 
   // Homing
   long     homingBackoffCounts = 200;
+  long     homingSpeedUnits    = 150;
   uint32_t homingTimeoutMs     = 120000;  // user-adjustable now
   bool     homeSideIsMin       = true;    // min end becomes "home"
 
@@ -37,7 +38,7 @@ static Preferences gPrefs;
 static WaxAxisSettings gSettings;
 
 // Increment this when you change preference semantics/defaults.
-static const uint32_t SETTINGS_SCHEMA_VER = 2;
+static const uint32_t SETTINGS_SCHEMA_VER = 3;
 
 static inline void settingsMigrateIfNeeded() {
   gPrefs.begin("settings", false);
@@ -55,6 +56,11 @@ static inline void settingsMigrateIfNeeded() {
     ssm.trim(); ssm.toUpperCase();
     if (ssm == "FREEWHEEL") ssm = "FREEWHEELING";
     gPrefs.putString("standstillMode", ssm);
+
+    // v3: add configurable homing speed default.
+    if (ver < 3) {
+      gPrefs.putLong("homingSpeed", 150);
+    }
 
     gPrefs.putUInt("schema", SETTINGS_SCHEMA_VER);
   }
@@ -77,6 +83,7 @@ static inline void settingsMigrateIfNeeded() {
     gPrefs.putLong("ppTol", gSettings.ppTolCounts);
 
     gPrefs.putLong("homeBackoff", gSettings.homingBackoffCounts);
+    gPrefs.putLong("homingSpeed", gSettings.homingSpeedUnits);
     gPrefs.putUInt("homeTimeout", gSettings.homingTimeoutMs);
     gPrefs.putBool("homeIsMin", gSettings.homeSideIsMin);
 
@@ -108,6 +115,7 @@ static inline void settingsLoad() {
   gSettings.ppTolCounts        = gPrefs.getLong("ppTol", 6);
 
   gSettings.homingBackoffCounts= gPrefs.getLong("homeBackoff", 200);
+  gSettings.homingSpeedUnits   = gPrefs.getLong("homingSpeed", 150);
   gSettings.homingTimeoutMs    = gPrefs.getUInt("homeTimeout", 120000);
   gSettings.homeSideIsMin      = gPrefs.getBool("homeIsMin", true);
 
@@ -127,6 +135,8 @@ static inline void settingsLoad() {
   if (gSettings.ppTolCounts   < 1) gSettings.ppTolCounts   = 1;
 
   if (gSettings.homingBackoffCounts < 20) gSettings.homingBackoffCounts = 20;
+  if (gSettings.homingSpeedUnits < 20) gSettings.homingSpeedUnits = 20;
+  if (gSettings.homingSpeedUnits > 300) gSettings.homingSpeedUnits = 300;
   if (gSettings.homingTimeoutMs < 10000) gSettings.homingTimeoutMs = 10000;
   if (gSettings.homingTimeoutMs > 600000) gSettings.homingTimeoutMs = 600000;
 
@@ -170,6 +180,7 @@ static inline void settingsSave() {
   gPrefs.putLong("ppTol", gSettings.ppTolCounts);
 
   gPrefs.putLong("homeBackoff", gSettings.homingBackoffCounts);
+  gPrefs.putLong("homingSpeed", gSettings.homingSpeedUnits);
   gPrefs.putUInt("homeTimeout", gSettings.homingTimeoutMs);
   gPrefs.putBool("homeIsMin", gSettings.homeSideIsMin);
 
