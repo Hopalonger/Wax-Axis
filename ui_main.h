@@ -50,7 +50,7 @@ static inline const char* waxStateName(WaxState s){
 }
 
 static inline int clampSpeedUnits(int v){
-  if (v < 100) v = 100;
+  if (v < 50) v = 50;
   if (v > 3000) v = 3000;
   return v;
 }

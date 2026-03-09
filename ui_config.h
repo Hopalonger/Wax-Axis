@@ -49,12 +49,12 @@ static const char UI_CONFIG_HTML[] PROGMEM = R"HTML(
 
         <div class="field">
           <label>Run Current (%)</label>
-          <input name="current" id="current" type="number" min="5" max="100" step="1" value="30">
+          <input name="current" id="current" type="number" min="5" max="100" step="1" value="10">
         </div>
 
         <div class="field">
           <label>Stall Threshold</label>
-          <input name="stall_threshold" id="stall_threshold" type="number" min="-64" max="63" step="1" value="10">
+          <input name="stall_threshold" id="stall_threshold" type="number" min="-64" max="63" step="1" value="63">
         </div>
 
         <div class="field">
