@@ -24,8 +24,8 @@ struct WaxAxisSettings {
   long edgeKeepoffCounts = 800;   // how far from each physical end we operate
   long parkOffsetCounts  = 1000;  // additional offset from the HOME operating edge
 
-  // Operating speed (UI units, 0..400)
-  long routineSpeedUnits = 200;
+  // Operating speed (UI units, 5..200, linear)
+  long routineSpeedUnits = 100;
 
   // Wax routine
   float preheatMult     = 2.0f;
@@ -114,7 +114,7 @@ static inline void settingsLoad() {
   gSettings.edgeKeepoffCounts  = gPrefs.getLong("edgeKeepoff", 800);
   gSettings.parkOffsetCounts   = gPrefs.getLong("parkOffset", 1000);
 
-  gSettings.routineSpeedUnits  = gPrefs.getLong("routineSpeed", 200);
+  gSettings.routineSpeedUnits  = gPrefs.getLong("routineSpeed", 100);
 
   gSettings.preheatMult        = gPrefs.getFloat("preheatMult", 2.0f);
   gSettings.returnSpeedPct     = gPrefs.getInt("returnPct", 200);
@@ -133,8 +133,8 @@ static inline void settingsLoad() {
   if (gSettings.edgeKeepoffCounts < 0) gSettings.edgeKeepoffCounts = 0;
   if (gSettings.parkOffsetCounts < 0) gSettings.parkOffsetCounts = 0;
 
-  if (gSettings.routineSpeedUnits < 50)  gSettings.routineSpeedUnits = 50;
-  if (gSettings.routineSpeedUnits > 400) gSettings.routineSpeedUnits = 400;
+  if (gSettings.routineSpeedUnits < 5)  gSettings.routineSpeedUnits = 5;
+  if (gSettings.routineSpeedUnits > 200) gSettings.routineSpeedUnits = 200;
 
   int currentPct = gSettings.current.toInt();
   if (currentPct < 5) currentPct = 5;

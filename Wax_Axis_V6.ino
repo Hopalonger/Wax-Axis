@@ -263,8 +263,8 @@ void setup() {
   server.on("/setopspeed", HTTP_POST, [](AsyncWebServerRequest *request) {
     String v = argOr(request, "routinespeed", String((long)gSettings.routineSpeedUnits));
     long rs = v.toInt();
-    if (rs < 50) rs = 50;
-    if (rs > 400) rs = 400;
+    if (rs < 5) rs = 5;
+    if (rs > 200) rs = 200;
     gSettings.routineSpeedUnits = rs;
     settingsSave();
     motionSetRoutineSpeedUnits((int)rs);

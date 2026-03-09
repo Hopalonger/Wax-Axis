@@ -180,8 +180,8 @@ static inline String motionGotoStatus(){
 }
 
 static inline void motionSetRoutineSpeedUnits(int units){
-  if (units < 100) units = 100;
-  if (units > 3000) units = 3000;
+  if (units < 5) units = 5;
+  if (units > 200) units = 200;
   gSettings.routineSpeedUnits = units;
 }
 
@@ -203,8 +203,12 @@ static inline bool motionGoTo(long target, long tol, uint32_t dtMs) {
   if (v >  vmax) v =  vmax;
   if (v < -vmax) v = -vmax;
 
-  if (v > 0 && v < 30) v = 30;
-  if (v < 0 && v > -30) v = -30;
+  int minDrive = vmax / 8;
+  if (minDrive < 3) minDrive = 3;
+  if (minDrive > 30) minDrive = 30;
+
+  if (v > 0 && v < minDrive) v = minDrive;
+  if (v < 0 && v > -minDrive) v = -minDrive;
 
   // Auto-correct encoder/motor polarity if we repeatedly move away from target.
   if (g_lastCtrlPosValid) {
