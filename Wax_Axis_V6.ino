@@ -1,3 +1,6 @@
+#ifndef WAX_AXIS_SKETCH_IMPL
+#define WAX_AXIS_SKETCH_IMPL
+
 /*
   Wax Axis V6 (Driver bring-up aligned to known-good V5)
 
@@ -263,8 +266,8 @@ void setup() {
   server.on("/setopspeed", HTTP_POST, [](AsyncWebServerRequest *request) {
     String v = argOr(request, "routinespeed", String((long)gSettings.routineSpeedUnits));
     long rs = v.toInt();
-    if (rs < 50) rs = 50;
-    if (rs > 400) rs = 400;
+    if (rs < 5) rs = 5;
+    if (rs > 200) rs = 200;
     gSettings.routineSpeedUnits = rs;
     settingsSave();
     motionSetRoutineSpeedUnits((int)rs);
@@ -334,6 +337,7 @@ void setup() {
 
     gSettings.edgeKeepoffCounts = argOr(request, "edge_keepoff", String(gSettings.edgeKeepoffCounts)).toInt();
     gSettings.parkOffsetCounts = argOr(request, "park_offset", String(gSettings.parkOffsetCounts)).toInt();
+    gSettings.homingSpeedUnits = argOr(request, "homing_speed", String(gSettings.homingSpeedUnits)).toInt();
     gSettings.homingTimeoutMs = (uint32_t)argOr(request, "homing_timeout", String(gSettings.homingTimeoutMs)).toInt();
 
     String hs = argOr(request, "home_side", gSettings.homeSideIsMin ? "min" : "max");
@@ -406,3 +410,6 @@ void loop() {
   homingServiceTask();
   waxTask();
 }
+
+
+#endif // WAX_AXIS_SKETCH_IMPL

@@ -308,10 +308,10 @@ static float homing_function(long &outEndMin, long &outEndMax) {
   const uint32_t SETTLE_MS      = 100;
   const uint32_t DIAG_ASSERT_MS = 20;
 
-  // Velocities in UI units (conservative)
-  const int32_t VEL_FAST_UNITS = 150;
-  const int32_t VEL_SLOW_UNITS = 55;
-  const int32_t VEL_BACK_UNITS = 95;
+  // Velocities in UI units (user-configurable base)
+  const int32_t VEL_FAST_UNITS = (int32_t)gSettings.homingSpeedUnits;
+  const int32_t VEL_SLOW_UNITS = (int32_t)max(20L, (long)lroundf((float)gSettings.homingSpeedUnits * 0.37f));
+  const int32_t VEL_BACK_UNITS = (int32_t)max(20L, (long)lroundf((float)gSettings.homingSpeedUnits * 0.63f));
 
   const uint32_t TICK_MS = 10;
   const int32_t  RAMP_UNITS_PER_TICK = 6;
@@ -511,6 +511,7 @@ inline String settingsToJsonWithHoming() {
   json += "\"gotoTolCounts\":" + String(gSettings.gotoTolCounts) + ",";
   json += "\"ppTolCounts\":" + String(gSettings.ppTolCounts) + ",";
   json += "\"homingBackoffCounts\":" + String(gSettings.homingBackoffCounts) + ",";
+  json += "\"homingSpeedUnits\":" + String(gSettings.homingSpeedUnits) + ",";
   json += "\"homingTimeoutMs\":" + String((uint32_t)gSettings.homingTimeoutMs) + ",";
   json += "\"homeSide\":\"" + String(gSettings.homeSideIsMin ? "min" : "max") + "\",";
   json += "\"edgeKeepoffCounts\":" + String(gSettings.edgeKeepoffCounts) + ",";
