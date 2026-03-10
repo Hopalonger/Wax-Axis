@@ -1,3 +1,6 @@
+#ifndef WAX_AXIS_SKETCH_IMPL
+#define WAX_AXIS_SKETCH_IMPL
+
 /*
   Wax Axis V6 (Driver bring-up aligned to known-good V5)
 
@@ -407,3 +410,6 @@ void loop() {
   homingServiceTask();
   waxTask();
 }
+
+
+#endif // WAX_AXIS_SKETCH_IMPL
